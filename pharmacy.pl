@@ -1,38 +1,56 @@
+% sku_by_brand
+% return all the possible solutions to sku and price for a particular brand and
+% type
+% ex:
+% ?- sku_by_brand(viagra, liquid, X).
+% X =  (17, 51.58) ;
+% X =  (18, 103.16) ;
+% X =  (19, 56.74) ;
+% X =  (20, 144.46) ;
+% X =  (21, 75.32) ;
+% X =  (22, 185.74).
 sku_by_brand(
   Brand, Type, (SkuId, Price)
   ) :-
     branded_product(BrandedProductId, Brand, _, Type, _),
     sku_product(SkuId, BrandedProductId, _, _, _, Price ).
 
-sku_per_active_ingredient(
-  ActiveIngredient, Strength, [_Alergy|_Alergies],
-  (Brand, Amount, Price, Format)
+% sku_per_active_ingredient_without_allergies
+% params ActiveIngredient, Strength, Allergies
+% return [(Id, Brand, Amount, Price, Format)]
+% returns a list sku products that have the right dosage and don't contain
+% any allergen listed.
+% ex:
+% ?- sku_per_active_ingredient_without_allergies(sildenafil, 50, [allergen_d], X).
+% X = [(3, viagra, 4, 56.74, tablets),  (4, viagra, 12, 144.46, tablets),  (19, viagra, 4, 56.74, liquid),  (20, viagra, 12, 144.46, liquid)].
+sku_per_active_ingredient_without_allergies(
+  ActiveIngredient, Strength, Allergies,
+  SafeBrandedProductsByStrengthBySku
   ) :-
-    branded_product(BrandedProductId,Brand, ActiveIngredient, Format, _),
-    sku_product(_, BrandedProductId, _, Amount, Strength, Price).
+    active_ingredient_without_allergen(ActiveIngredient, Allergies, SafeBrandedProducts),
+    findall(
+      (Id, Brand, Amount, Price, Format),
+      (
+        branded_product(BrandedProductId, Brand, ActiveIngredient, Format, _),
+        contains_term((BrandedProductId, Brand), SafeBrandedProducts),
+        sku_product(Id, BrandedProductId, _, Amount, Strength, Price)
+      ),
+      SafeBrandedProductsByStrengthBySku
+    ).
 
-foo :-
-  findall(Identifier,
-    branded_product(Identifier, _Brand, _ActiveIngredient, _Type, Alergens),
-     not(contains('alergen_d', Alergens))).
+% active_ingredient_without_allergen
+% params ActiveIngredient, Allergies
+% returns [(Identifier, Brand)], of brands with products without any of the Allergies
 
-% active_ingredient_without_alergen(ActiveIngredient, ) :-
-% findall((Identifier, Brand), (branded_product(Identifier, Brand, _ActiveIngredient, _Type, Alergens), not(contains('alergen_a',Alergens)) ), F).
-%
-% setof((Identifier, Brand), branded_product(Identifier, Brand, _ActiveIngredient, _Type, Alergens), X).
+active_ingredient_without_allergen(ActiveIngredient, Allergies, F) :-
+  findall((Identifier, Brand), (branded_product(Identifier, Brand, ActiveIngredient, _Type, Allergens), not_included(Allergies, Allergens) ), F).
 
-
-contains(_, []) :- false,!.
-contains(X, [X|_]) :- true, !.
-contains(X, [_|Tail]) :- contains(X, Tail).
+% helpers
+not_included([], _) :- true,!.
+not_included(X, Y) :- intersection(X, Y, []),!.
 
 % included([1,4,5,6], [1,3,6]) :- true.
-
-included([], []) :- false,!.
-included([_X], []) :- false,!.
-included([], [_]):- false,!.
-included([A|B], CandidateList):- contains(A, CandidateList),!,false,
-                                 included(B, CandidateList).
+included(X, Y) :- not(intersection(X, Y, [])).
 
 % Knowledge Base:
 % active_ingredient(name::str, information::str).
@@ -45,14 +63,14 @@ active_ingredients_strengths([(sildenafil, 50)]).
 active_ingredients_strengths([(sildenafil, 100)]).
 active_ingredients_strengths([(sildenafil, 150)]).
 
-active_ingredients_strengths([(paracetamol, 250)]).
+active_ingredients_strengths([(paracetamol, 250), (sugar, 10)]).
 active_ingredients_strengths([(paracetamol, 500)]).
 active_ingredients_strengths([(paracetamol, 1000)]).
 
-% branded_product(id, name, active_ingredient, [alergens]).
-branded_product(viagra_tablets, viagra, sildenafil, tablets, ['alergen_a','alergen_b']).
-branded_product(viagra_liquid, viagra, sildenafil, liquid, ['alergen_a','alergen_b']).
-branded_product(sildehexal_tablets, sildehexal, sildenafil, tablets, ['alergen_a','alergen_d']).
+% branded_product(id, name, active_ingredient, [allergens]).
+branded_product(viagra_tablets, viagra, sildenafil, tablets, ['allergen_a','allergen_b']).
+branded_product(viagra_liquid, viagra, sildenafil, liquid, ['allergen_a','allergen_b']).
+branded_product(sildehexal_tablets, sildehexal, sildenafil, tablets, ['allergen_a','allergen_d']).
 
 % sku_product(branded_product_id, uuid , amount, strength, price)
 sku_product(1, viagra_tablets, 1 , 4, 25, 51.58 ).
